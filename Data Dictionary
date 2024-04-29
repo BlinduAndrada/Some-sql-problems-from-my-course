@@ -1,0 +1,87 @@
+select * from USER_SOURCE;
+
+select * from USER_TRIGGERS;
+
+CREATE OR REPLACE PROCEDURE afisare_structuri (tip_structura VARCHAR2) AS
+    v_numar_structuri NUMBER;
+BEGIN
+    IF tip_structura = 'TRIGGER' THEN
+        SELECT COUNT(*) INTO v_numar_structuri
+        FROM user_triggers;
+    ELSE
+        SELECT COUNT(distinct name) INTO v_numar_structuri
+        FROM user_source
+        WHERE type = tip_structura;
+    END IF;
+
+    DBMS_OUTPUT.PUT_LINE('Nr de structuri tip '  || tip_structura || ': ' || v_numar_structuri);
+
+    IF tip_structura = 'TRIGGER' THEN
+        FOR rec IN (SELECT trigger_name FROM user_triggers)
+        LOOP
+            DBMS_OUTPUT.PUT_LINE('Nume trigger: ' || rec.trigger_name);
+        END LOOP;
+    ELSE
+        FOR rec IN (SELECT distinct name FROM user_source
+                    WHERE type = tip_structura)
+        LOOP
+            DBMS_OUTPUT.PUT_LINE('Denumire: ' || rec.name);
+            
+
+          FOR source_rec IN (SELECT us.text, uo.created, uo.last_ddl_time
+                   FROM user_source us
+                   JOIN user_objects uo ON us.name = uo.object_name
+                   WHERE us.name = rec.name
+                    AND us.type = tip_structura
+                   ORDER BY us.line)
+LOOP
+    DBMS_OUTPUT.PUT_LINE('Denumire: ' || rec.name);
+    DBMS_OUTPUT.PUT_LINE('Data crearii: ' || TO_CHAR(source_rec.created, 'DD-MON-YYYY HH24:MI:SS'));
+    DBMS_OUTPUT.PUT_LINE('Data ultimei modificari: ' || TO_CHAR(source_rec.last_ddl_time, 'DD-MON-YYYY HH24:MI:SS'));
+    DBMS_OUTPUT.PUT_LINE(source_rec.text);
+END LOOP;
+        END LOOP;
+        
+    END IF;
+END;
+/
+DECLARE
+    CURSOR through_user_source(cur_name VARCHAR2) IS
+        SELECT text FROM user_source WHERE name = cur_name;
+    v_text VARCHAR2(32767);
+BEGIN
+    FOR rec IN (SELECT distinct name, type FROM user_source
+                UNION
+                SELECT view_name as name, 'VIEW' as type FROM all_views WHERE owner = 'Numele_utilizatorului')
+    LOOP
+        
+        IF rec.type != 'VIEW' THEN
+            OPEN through_user_source(rec.name);
+            LOOP
+                FETCH through_user_source INTO v_text;
+                EXIT WHEN through_user_source%NOTFOUND;
+                DBMS_OUTPUT.PUT_LINE('  ' || v_text);
+            END LOOP;
+            CLOSE through_user_source;
+        ELSE
+            SELECT text INTO v_text FROM all_views WHERE view_name = rec.name;
+            DBMS_OUTPUT.PUT_LINE('  ' || v_text);
+        END IF;
+    END LOOP;
+END;
+/
+
+
+select * from USER_SOURCE;
+select * from USER_TRIGGERS;
+set serveroutput on;
+    BEGIN
+        afisare_structuri('PACKAGE'); 
+        afisare_structuri('PACKAGE BODY');
+       afisare_structuri('PROCEDURE');  
+      afisare_structuri('TYPE');   
+    afisare_structuri('TYPE BODY');
+      afisare_structuri('TRIGGER'); 
+    END;
+/
+   
